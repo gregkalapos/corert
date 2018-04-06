@@ -2,17 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-//
-// This file provides an implementation of the pieces of the Marshal class which are required by the Interop
-// API contract but are not provided by the version of Marshal which is part of the Redhawk test library.
-// This partial class is combined with the version from the Redhawk test library, in order to provide the
-// Marshal implementation for System.Private.CoreLib.
-//
-
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Contracts;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
@@ -20,6 +12,7 @@ using System.Security;
 using System.Text;
 using System.Threading;
 using System.Runtime.InteropServices.ComTypes;
+using Internal.Runtime.CompilerHelpers;
 
 namespace System.Runtime.InteropServices
 {
@@ -98,28 +91,12 @@ namespace System.Runtime.InteropServices
 
         public static unsafe String PtrToStringUni(IntPtr ptr, int len)
         {
-            if (ptr == IntPtr.Zero)
-                throw new ArgumentNullException(nameof(ptr));
-            if (len < 0)
-                throw new ArgumentException(nameof(len));
-
-            return new String((char*)ptr, 0, len);
+            return PInvokeMarshal.PtrToStringUni(ptr, len);
         }
 
         public static unsafe String PtrToStringUni(IntPtr ptr)
         {
-            if (IntPtr.Zero == ptr)
-            {
-                return null;
-            }
-            else if (IsWin32Atom(ptr))
-            {
-                return null;
-            }
-            else
-            {
-                return new String((char*)ptr);
-            }
+            return PInvokeMarshal.PtrToStringUni(ptr);
         }
 
         public static String PtrToStringAuto(IntPtr ptr, int len)
@@ -156,19 +133,16 @@ namespace System.Runtime.InteropServices
             if (structure == null)
                 throw new ArgumentNullException(nameof(structure));
             // we never had a check for generics here
-            Contract.EndContractBlock();
 
             return SizeOfHelper(structure.GetType(), true);
         }
 
-        [Pure]
         public static int SizeOf(Type t)
         {
             if (t == null)
                 throw new ArgumentNullException(nameof(t));
             if (t.TypeHandle.IsGenericType() || t.TypeHandle.IsGenericTypeDefinition())
                 throw new ArgumentException(SR.Argument_NeedNonGenericType, nameof(t));
-            Contract.EndContractBlock();
 
             return SizeOfHelper(t, true);
         }
@@ -177,10 +151,10 @@ namespace System.Runtime.InteropServices
         {
             RuntimeTypeHandle typeHandle = t.TypeHandle;
 
-            RuntimeTypeHandle unsafeStructType;
-            if (McgModuleManager.TryGetStructUnsafeStructType(typeHandle, out unsafeStructType))
+            int size;
+            if (RuntimeInteropData.Instance.TryGetStructUnsafeStructSize(typeHandle, out size))
             {
-                return unsafeStructType.GetValueTypeSize();
+                return size;
             }
 
             if (!typeHandle.IsBlittable() && !typeHandle.IsValueType())
@@ -207,7 +181,6 @@ namespace System.Runtime.InteropServices
             if (t.TypeHandle.IsGenericType() || t.TypeHandle.IsGenericTypeDefinition())
                 throw new ArgumentException(SR.Argument_NeedNonGenericType, nameof(t));
 
-            Contract.EndContractBlock();
 
             return OffsetOfHelper(t, fieldName);
         }
@@ -216,7 +189,7 @@ namespace System.Runtime.InteropServices
         {
             bool structExists;
             uint offset;
-            if (McgModuleManager.TryGetStructFieldOffset(t.TypeHandle, fieldName, out structExists, out offset))
+            if (RuntimeInteropData.Instance.TryGetStructFieldOffset(t.TypeHandle, fieldName, out structExists, out offset))
             {
                 return new IntPtr(offset);
             }
@@ -242,47 +215,42 @@ namespace System.Runtime.InteropServices
         //====================================================================
         public static void Copy(int[] source, int startIndex, IntPtr destination, int length)
         {
-            CopyToNative(source, startIndex, destination, length);
+            PInvokeMarshal.CopyToNative(source, startIndex, destination, length);
         }
 
         public static void Copy(char[] source, int startIndex, IntPtr destination, int length)
         {
-            CopyToNative(source, startIndex, destination, length);
+            PInvokeMarshal.CopyToNative(source, startIndex, destination, length);
         }
 
         public static void Copy(short[] source, int startIndex, IntPtr destination, int length)
         {
-            CopyToNative(source, startIndex, destination, length);
+            PInvokeMarshal.CopyToNative(source, startIndex, destination, length);
         }
 
         public static void Copy(long[] source, int startIndex, IntPtr destination, int length)
         {
-            CopyToNative(source, startIndex, destination, length);
+            PInvokeMarshal.CopyToNative(source, startIndex, destination, length);
         }
 
         public static void Copy(float[] source, int startIndex, IntPtr destination, int length)
         {
-            CopyToNative(source, startIndex, destination, length);
+            PInvokeMarshal.CopyToNative(source, startIndex, destination, length);
         }
 
         public static void Copy(double[] source, int startIndex, IntPtr destination, int length)
         {
-            CopyToNative(source, startIndex, destination, length);
+            PInvokeMarshal.CopyToNative(source, startIndex, destination, length);
         }
 
         public static void Copy(byte[] source, int startIndex, IntPtr destination, int length)
         {
-            CopyToNative(source, startIndex, destination, length);
+            PInvokeMarshal.CopyToNative(source, startIndex, destination, length);
         }
 
         public static void Copy(IntPtr[] source, int startIndex, IntPtr destination, int length)
         {
-            CopyToNative(source, startIndex, destination, length);
-        }
-
-        private static void CopyToNative(Array source, int startIndex, IntPtr destination, int length)
-        {
-            InteropExtensions.CopyToNative(source, startIndex, destination, length);
+            PInvokeMarshal.CopyToNative(source, startIndex, destination, length);
         }
 
         //====================================================================
@@ -290,49 +258,43 @@ namespace System.Runtime.InteropServices
         //====================================================================
         public static void Copy(IntPtr source, int[] destination, int startIndex, int length)
         {
-            CopyToManaged(source, destination, startIndex, length);
+            PInvokeMarshal.CopyToManaged(source, destination, startIndex, length);
         }
 
         public static void Copy(IntPtr source, char[] destination, int startIndex, int length)
         {
-            CopyToManaged(source, destination, startIndex, length);
+            PInvokeMarshal.CopyToManaged(source, destination, startIndex, length);
         }
 
         public static void Copy(IntPtr source, short[] destination, int startIndex, int length)
         {
-            CopyToManaged(source, destination, startIndex, length);
+            PInvokeMarshal.CopyToManaged(source, destination, startIndex, length);
         }
 
         public static void Copy(IntPtr source, long[] destination, int startIndex, int length)
         {
-            CopyToManaged(source, destination, startIndex, length);
+            PInvokeMarshal.CopyToManaged(source, destination, startIndex, length);
         }
 
         public static void Copy(IntPtr source, float[] destination, int startIndex, int length)
         {
-            CopyToManaged(source, destination, startIndex, length);
+            PInvokeMarshal.CopyToManaged(source, destination, startIndex, length);
         }
 
         public static void Copy(IntPtr source, double[] destination, int startIndex, int length)
         {
-            CopyToManaged(source, destination, startIndex, length);
+            PInvokeMarshal.CopyToManaged(source, destination, startIndex, length);
         }
 
         public static void Copy(IntPtr source, byte[] destination, int startIndex, int length)
         {
-            CopyToManaged(source, destination, startIndex, length);
+            PInvokeMarshal.CopyToManaged(source, destination, startIndex, length);
         }
 
         public static void Copy(IntPtr source, IntPtr[] destination, int startIndex, int length)
         {
-            CopyToManaged(source, destination, startIndex, length);
+            PInvokeMarshal.CopyToManaged(source, destination, startIndex, length);
         }
-
-        private static void CopyToManaged(IntPtr source, Array destination, int startIndex, int length)
-        {
-            InteropExtensions.CopyToManaged(source, destination, startIndex, length);
-        }
-
 
         //====================================================================
         // Read from memory
@@ -402,29 +364,23 @@ namespace System.Runtime.InteropServices
 
         public static IntPtr ReadIntPtr([MarshalAs(UnmanagedType.AsAny), In] Object ptr, int ofs)
         {
-#if WIN32
-            return (IntPtr)ReadInt32(ptr, ofs);
-#else
-            return (IntPtr)ReadInt64(ptr, ofs);
-#endif
+            if (IntPtr.Size == 4)
+                return (IntPtr)ReadInt32(ptr, ofs);
+            else
+                return (IntPtr)ReadInt64(ptr, ofs);
         }
 
         public static IntPtr ReadIntPtr(IntPtr ptr, int ofs)
         {
-#if WIN32
-            return (IntPtr)ReadInt32(ptr, ofs);
-#else
-            return (IntPtr)ReadInt64(ptr, ofs);
-#endif
+            if (IntPtr.Size == 4)
+                return (IntPtr)ReadInt32(ptr, ofs);
+            else
+                return (IntPtr)ReadInt64(ptr, ofs);
         }
 
         public static IntPtr ReadIntPtr(IntPtr ptr)
         {
-#if WIN32
-            return (IntPtr)ReadInt32(ptr, 0);
-#else
-            return (IntPtr)ReadInt64(ptr, 0);
-#endif
+            return ReadIntPtr(ptr, 0);
         }
 
         public static unsafe long ReadInt64(IntPtr ptr, int ofs)
@@ -534,29 +490,24 @@ namespace System.Runtime.InteropServices
 
         public static void WriteIntPtr(IntPtr ptr, int ofs, IntPtr val)
         {
-#if WIN32
-            WriteInt32(ptr, ofs, (int)val);
-#else
-            WriteInt64(ptr, ofs, (long)val);
-#endif
+            if (IntPtr.Size == 4)
+                WriteInt32(ptr, ofs, (int)val);
+            else
+                WriteInt64(ptr, ofs, (long)val);
         }
 
         public static void WriteIntPtr([MarshalAs(UnmanagedType.AsAny), In, Out] Object ptr, int ofs, IntPtr val)
         {
-#if WIN32
-            WriteInt32(ptr, ofs, (int)val);
-#else
-            WriteInt64(ptr, ofs, (long)val);
-#endif
+            if (IntPtr.Size == 4)
+                WriteInt32(ptr, ofs, (int)val);
+            else
+                WriteInt64(ptr, ofs, (long)val);
+
         }
 
         public static void WriteIntPtr(IntPtr ptr, IntPtr val)
         {
-#if WIN32
-            WriteInt32(ptr, 0, (int)val);
-#else
-            WriteInt64(ptr, 0, (long)val);
-#endif
+            WriteIntPtr(ptr, 0, val);
         }
 
         public static unsafe void WriteInt64(IntPtr ptr, int ofs, long val)
@@ -617,7 +568,7 @@ namespace System.Runtime.InteropServices
                 createCOMException: false,
                 hasErrorInfo: false);
 #else
-            throw new PlatformNotSupportedException("GetExceptionForHR");
+            return new COMException(errorCode);
 #endif // ENABLE_WINRT
         }
 
@@ -805,7 +756,7 @@ namespace System.Runtime.InteropServices
             {
                 throw new ArgumentNullException(nameof(o));
             }
-            return MarshalAdapter.GetIUnknownForObject(o);
+            return McgMarshal.ObjectToComInterface(o, InternalTypes.IUnknown);
         }
 
         //====================================================================
@@ -817,7 +768,7 @@ namespace System.Runtime.InteropServices
             {
                 throw new ArgumentNullException(nameof(pUnk));
             }
-            return MarshalAdapter.GetObjectForIUnknown(pUnk);
+            return McgMarshal.ComInterfaceToObject(pUnk, InternalTypes.IUnknown);
         }
 
         //====================================================================
@@ -828,7 +779,7 @@ namespace System.Runtime.InteropServices
             if (o == null)
                 throw new ArgumentNullException(nameof(o), SR.Arg_InvalidHandle);
 
-            return McgComHelpers.IsComObject(o);
+            return McgMarshal.IsComObject(o);
         }
 
         public static unsafe IntPtr StringToCoTaskMemUni(String s)
@@ -928,7 +879,6 @@ namespace System.Runtime.InteropServices
         {
             if (o == null)
                 throw new ArgumentNullException(nameof(o));
-            Contract.EndContractBlock();
 
             __ComObject co = null;
 
@@ -1061,7 +1011,7 @@ namespace System.Runtime.InteropServices
             if (d == null)
                 throw new ArgumentNullException(nameof(d));
 
-            return PInvokeMarshal.GetStubForPInvokeDelegate(d);
+            return PInvokeMarshal.GetFunctionPointerForDelegate(d);
         }
 
         public static IntPtr GetFunctionPointerForDelegate<TDelegate>(TDelegate d)
@@ -1096,7 +1046,7 @@ namespace System.Runtime.InteropServices
             }
 
             IntPtr unmarshalStub;
-            if (McgModuleManager.TryGetStructUnmarshalStub(structureTypeHandle, out unmarshalStub))
+            if (RuntimeInteropData.Instance.TryGetStructUnmarshalStub(structureTypeHandle, out unmarshalStub))
             {
                 InteropExtensions.PinObjectAndCall(structure,
                     unboxedStructPtr =>
@@ -1191,7 +1141,7 @@ namespace System.Runtime.InteropServices
 
             bool isBlittable = false; // whether Mcg treat this struct as blittable struct
             IntPtr marshalStub;
-            if (McgModuleManager.TryGetStructMarshalStub(structureTypeHandle, out marshalStub))
+            if (RuntimeInteropData.Instance.TryGetStructMarshalStub(structureTypeHandle, out marshalStub))
             {
                 if (marshalStub != IntPtr.Zero)
                 {
@@ -1259,7 +1209,6 @@ namespace System.Runtime.InteropServices
                 throw new ArgumentException(SR.Argument_MustHaveLayoutOrBeBlittable, structureTypeHandle.GetDisplayName());
             }
 
-            Contract.EndContractBlock();
 
             DestroyStructureHelper(ptr, structuretype);
         }
@@ -1279,7 +1228,7 @@ namespace System.Runtime.InteropServices
 
             IntPtr destroyStructureStub;
             bool hasInvalidLayout;
-            if (McgModuleManager.TryGetDestroyStructureStub(structureTypeHandle, out destroyStructureStub, out hasInvalidLayout))
+            if (RuntimeInteropData.Instance.TryGetDestroyStructureStub(structureTypeHandle, out destroyStructureStub, out hasInvalidLayout))
             {
                 if (hasInvalidLayout)
                     throw new ArgumentException(SR.Argument_MustHaveLayoutOrBeBlittable, structureTypeHandle.GetDisplayName());
@@ -1312,7 +1261,13 @@ namespace System.Runtime.InteropServices
 
         public static IntPtr /* IUnknown* */ GetComInterfaceForObject(Object o, Type T)
         {
-            return MarshalAdapter.GetComInterfaceForObject(o, T);
+            if (o == null)
+                throw new ArgumentNullException(nameof(o));
+
+            if (T == null)
+                throw new ArgumentNullException(nameof(T));
+
+            return McgMarshal.ObjectToComInterface(o, T.TypeHandle);
         }
 
         public static TDelegate GetDelegateForFunctionPointer<TDelegate>(IntPtr ptr)
@@ -1328,18 +1283,16 @@ namespace System.Runtime.InteropServices
 
             if (t == null)
                 throw new ArgumentNullException(nameof(t));
-            Contract.EndContractBlock();
 
             if (t.TypeHandle.IsGenericType() || t.TypeHandle.IsGenericTypeDefinition())
                 throw new ArgumentException(SR.Argument_NeedNonGenericType, nameof(t));
 
-            bool isDelegateType = InteropExtensions.AreTypesAssignable(t.TypeHandle, typeof(MulticastDelegate).TypeHandle) ||
-                                  InteropExtensions.AreTypesAssignable(t.TypeHandle, typeof(Delegate).TypeHandle);
+            bool isDelegateType = InteropExtensions.AreTypesAssignable(t.TypeHandle, typeof(Delegate).TypeHandle);
 
             if (!isDelegateType)
                 throw new ArgumentException(SR.Arg_MustBeDelegateType, nameof(t));
 
-            return MarshalAdapter.GetDelegateForFunctionPointer(ptr, t);
+            return McgMarshal.GetPInvokeDelegateForStub(ptr, t.TypeHandle);
         }
 
         //====================================================================
@@ -1360,7 +1313,6 @@ namespace System.Runtime.InteropServices
             if (obj != null && (obj.GetType().TypeHandle.IsGenericType() || obj.GetType().TypeHandle.IsGenericTypeDefinition()))
                 throw new ArgumentException(SR.Argument_NeedNonGenericObject, nameof(obj));
 
-            Contract.EndContractBlock();
 
             Variant* pVariant = (Variant*)pDstNativeVariant;
             *pVariant = new Variant(obj);
@@ -1380,7 +1332,6 @@ namespace System.Runtime.InteropServices
             // Obsolete
             if (pSrcNativeVariant == IntPtr.Zero)
                 throw new ArgumentNullException(nameof(pSrcNativeVariant));
-            Contract.EndContractBlock();
 
             Variant* pNativeVar = (Variant*)pSrcNativeVariant;
             return pNativeVar->ToObject();
@@ -1398,7 +1349,6 @@ namespace System.Runtime.InteropServices
 
             if (cVars < 0)
                 throw new ArgumentOutOfRangeException(nameof(cVars), SR.ArgumentOutOfRange_NeedNonNegNum);
-            Contract.EndContractBlock();
 
             Object[] obj = new Object[cVars];
             IntPtr aNativeVar = aSrcNativeVariant;
@@ -1435,21 +1385,12 @@ namespace System.Runtime.InteropServices
         //====================================================================
         public static IntPtr UnsafeAddrOfPinnedArrayElement(Array arr, int index)
         {
-            if (arr == null)
-                throw new ArgumentNullException(nameof(arr));
-
-            if (index < 0 || index >= arr.Length)
-                throw new ArgumentOutOfRangeException(nameof(index));
-            Contract.EndContractBlock();
-
-            int offset = checked(index * arr.GetElementSize());
-
-            return arr.GetAddrOfPinnedArrayFromEETypeField() + offset;
+            return PInvokeMarshal.UnsafeAddrOfPinnedArrayElement(arr, index);
         }
 
         public static IntPtr UnsafeAddrOfPinnedArrayElement<T>(T[] arr, int index)
         {
-            return UnsafeAddrOfPinnedArrayElement((Array)arr, index);
+            return PInvokeMarshal.UnsafeAddrOfPinnedArrayElement(arr, index);
         }
 
         //====================================================================
@@ -1476,9 +1417,7 @@ namespace System.Runtime.InteropServices
 #if ENABLE_WINRT
         public static Type GetTypeFromCLSID(Guid clsid)
         {
-            // @TODO - if this is something we recognize, create a strongly-typed RCW
-            // Otherwise, create a weakly typed RCW
-            throw new PlatformNotSupportedException();
+            return Type.GetTypeFromCLSID(clsid);
         }
 
         //====================================================================
@@ -1616,7 +1555,6 @@ namespace System.Runtime.InteropServices
         {
             if (m == null)
                 throw new ArgumentNullException(nameof(m));
-            Contract.EndContractBlock();
 
             // Note: This method is effectively a no-op in ahead-of-time compilation scenarios. In CoreCLR and Desktop, this will pre-generate
             // the P/Invoke, but everything is pre-generated in CoreRT.
@@ -1626,7 +1564,6 @@ namespace System.Runtime.InteropServices
         {
             if (c == null)
                 throw new ArgumentNullException(nameof(c));
-            Contract.EndContractBlock();
 
             MethodInfo[] mi = c.GetMethods();
             if (mi != null)

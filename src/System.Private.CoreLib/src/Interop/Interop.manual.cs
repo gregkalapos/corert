@@ -24,7 +24,6 @@ internal partial class Interop
         CreateSuspended = 0x4u,
         WaitAbandoned0 = 0x80u,
         WaitTimeout = 0x102u,
-        MaxPath = 0x104u,
         StackSizeParamIsAReservation = 0x10000u,
         Synchronize = 0x100000u,
         MaximumAllowed = 0x02000000u,
@@ -127,53 +126,5 @@ internal partial class Interop
             _EXCEPTION_RECORD* pExceptionRecord,
             IntPtr pContextRecord,
             uint dwFlags);
-    }
-}
-
-namespace System.Runtime.InteropServices
-{
-    internal class Marshal
-    {
-        public static int GetLastWin32Error()
-        {
-            return PInvokeMarshal.GetLastWin32Error();
-        }
-
-        public static unsafe IntPtr AllocHGlobal(IntPtr cb)
-        {
-            return PInvokeMarshal.AllocHGlobal(cb);
-        }
-
-        public static unsafe IntPtr AllocHGlobal(int cb)
-        {
-            return PInvokeMarshal.AllocHGlobal(cb);
-        }
-
-        public static void FreeHGlobal(IntPtr hglobal)
-        {
-            PInvokeMarshal.FreeHGlobal(hglobal);
-        }
-
-        public static unsafe IntPtr AllocCoTaskMem(int cb)
-        {
-            return PInvokeMarshal.AllocCoTaskMem(cb);
-        }
-
-        public static void FreeCoTaskMem(IntPtr ptr)
-        {
-            PInvokeMarshal.FreeCoTaskMem(ptr);
-        }
-
-        public static void Copy(IntPtr source, byte[] destination, int startIndex, int length)
-        {
-            InteropExtensions.CopyToManaged(source, destination, startIndex, length);
-        }
-
-#if PLATFORM_UNIX
-        public static unsafe String PtrToStringAnsi(IntPtr ptr)
-        {
-            return PInvokeMarshal.PtrToStringAnsi(ptr);
-        }
-#endif
     }
 }

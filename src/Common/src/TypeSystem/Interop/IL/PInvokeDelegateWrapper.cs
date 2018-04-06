@@ -204,6 +204,7 @@ namespace Internal.TypeSystem.Interop
             }
 
             flags |= TypeFlags.HasFinalizerComputed;
+            flags |= TypeFlags.AttributeCacheComputed;
 
             return flags;
         }

@@ -13,30 +13,32 @@ using System.Runtime.Serialization;
 
 namespace System
 {
+    [Serializable]
+    [System.Runtime.CompilerServices.TypeForwardedFrom("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")]
     public class MissingFieldException : MissingMemberException
     {
         public MissingFieldException()
             : base(SR.Arg_MissingFieldException)
         {
-            HResult = __HResults.COR_E_MISSINGFIELD;
+            HResult = HResults.COR_E_MISSINGFIELD;
         }
 
         public MissingFieldException(String message)
             : base(message)
         {
-            HResult = __HResults.COR_E_MISSINGFIELD;
+            HResult = HResults.COR_E_MISSINGFIELD;
         }
 
         public MissingFieldException(String message, Exception inner)
             : base(message, inner)
         {
-            HResult = __HResults.COR_E_MISSINGFIELD;
+            HResult = HResults.COR_E_MISSINGFIELD;
         }
 
-        public MissingFieldException(string className, string methodName)
+        public MissingFieldException(string className, string fieldName)
         {
             ClassName = className;
-            MemberName = methodName;
+            MemberName = fieldName;
         }
 
         protected MissingFieldException(SerializationInfo info, StreamingContext context)

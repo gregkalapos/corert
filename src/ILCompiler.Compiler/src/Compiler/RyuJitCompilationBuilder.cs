@@ -75,7 +75,8 @@ namespace ILCompiler
                     break;
             }
 
-            if (_generateDebugInfo)
+            // Do not bother with debug information if the debug info provider never gives anything.
+            if (!(_debugInformationProvider is NullDebugInformationProvider))
                 jitFlagBuilder.Add(CorJitFlag.CORJIT_FLAG_DEBUG_INFO);
 
             if (_context.Target.MaximumSimdVectorLength != SimdVectorLength.None)
@@ -85,11 +86,12 @@ namespace ILCompiler
                 jitFlagBuilder.Add(CorJitFlag.CORJIT_FLAG_FEATURE_SIMD);
             }
 
-            var factory = new RyuJitNodeFactory(_context, _compilationGroup, _metadataManager, _nameMangler);
+            var interopStubManager = new CompilerGeneratedInteropStubManager(_compilationGroup, _context, new InteropStateManager(_context.GeneratedAssembly));
+            var factory = new RyuJitNodeFactory(_context, _compilationGroup, _metadataManager, interopStubManager, _nameMangler, _vtableSliceProvider, _dictionaryLayoutProvider);
 
             var jitConfig = new JitConfigProvider(jitFlagBuilder.ToArray(), _ryujitOptions);
-            DependencyAnalyzerBase<NodeFactory> graph = CreateDependencyGraph(factory);
-            return new RyuJitCompilation(graph, factory, _compilationRoots, _logger, jitConfig);
+            DependencyAnalyzerBase<NodeFactory> graph = CreateDependencyGraph(factory, new ObjectNode.ObjectNodeComparer(new CompilerComparer()));
+            return new RyuJitCompilation(graph, factory, _compilationRoots, _debugInformationProvider, _logger, _devirtualizationManager, jitConfig);
         }
     }
 }

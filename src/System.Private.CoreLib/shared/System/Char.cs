@@ -13,7 +13,6 @@
 ===========================================================*/
 
 using System.Diagnostics;
-using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.Runtime.InteropServices;
 
@@ -21,6 +20,7 @@ namespace System
 {
     [Serializable]
     [StructLayout(LayoutKind.Sequential)]
+    [System.Runtime.CompilerServices.TypeForwardedFrom("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")] 
     public struct Char : IComparable, IComparable<Char>, IEquatable<Char>, IConvertible
     {
         //
@@ -128,7 +128,6 @@ namespace System
         // null is considered to be less than any instance.
         // If object is not of type Char, this method throws an ArgumentException.
         //
-        [Pure]
         public int CompareTo(Object value)
         {
             if (value == null)
@@ -143,24 +142,19 @@ namespace System
             return (m_value - ((Char)value).m_value);
         }
 
-        [Pure]
         public int CompareTo(Char value)
         {
             return (m_value - value);
         }
 
         // Overrides System.Object.ToString.
-        [Pure]
         public override String ToString()
         {
-            Contract.Ensures(Contract.Result<String>() != null);
             return Char.ToString(m_value);
         }
 
-        [Pure]
         public String ToString(IFormatProvider provider)
         {
-            Contract.Ensures(Contract.Result<String>() != null);
             return Char.ToString(m_value);
         }
 
@@ -172,7 +166,6 @@ namespace System
         **This static methods takes a character and returns the String representation of it.
         ==============================================================================*/
         // Provides a string representation of a character.
-        [Pure]
         public static string ToString(char c) => string.CreateFromChar(c);
 
         public static char Parse(String s)
@@ -181,7 +174,6 @@ namespace System
             {
                 throw new ArgumentNullException(nameof(s));
             }
-            Contract.EndContractBlock();
 
             if (s.Length != 1)
             {
@@ -213,7 +205,6 @@ namespace System
         **character c is considered to be a digit.                                    **
         ==============================================================================*/
         // Determines whether a character is a digit.
-        [Pure]
         public static bool IsDigit(char c)
         {
             if (IsLatin1(c))
@@ -246,7 +237,6 @@ namespace System
         **character c is considered to be a letter.                                   **
         ==============================================================================*/
         // Determines whether a character is a letter.
-        [Pure]
         public static bool IsLetter(char c)
         {
             if (IsLatin1(c))
@@ -273,11 +263,11 @@ namespace System
             // U+000d = <control> CARRIAGE RETURN
             // U+0085 = <control> NEXT LINE
             // U+00a0 = NO-BREAK SPACE
-            if ((c == ' ') || (c >= '\x0009' && c <= '\x000d') || c == '\x00a0' || c == '\x0085')
-            {
-                return (true);
-            }
-            return (false);
+            return
+                c == ' ' ||
+                (uint)(c - '\x0009') <= ('\x000d' - '\x0009') || // (c >= '\x0009' && c <= '\x000d')
+                c == '\x00a0' ||
+                c == '\x0085';
         }
 
         /*===============================ISWHITESPACE===================================
@@ -285,7 +275,6 @@ namespace System
         **character c is considered to be a whitespace character.                     **
         ==============================================================================*/
         // Determines whether a character is whitespace.
-        [Pure]
         public static bool IsWhiteSpace(char c)
         {
             if (IsLatin1(c))
@@ -301,7 +290,6 @@ namespace System
         **Returns:  True if c is an uppercase character.
         ==============================================================================*/
         // Determines whether a character is upper-case.
-        [Pure]
         public static bool IsUpper(char c)
         {
             if (IsLatin1(c))
@@ -320,7 +308,6 @@ namespace System
         **Returns:  True if c is an lowercase character.
         ==============================================================================*/
         // Determines whether a character is lower-case.
-        [Pure]
         public static bool IsLower(char c)
         {
             if (IsLatin1(c))
@@ -356,7 +343,6 @@ namespace System
         **Returns:  True if c is an punctuation mark
         ==============================================================================*/
         // Determines whether a character is a punctuation mark.
-        [Pure]
         public static bool IsPunctuation(char c)
         {
             if (IsLatin1(c))
@@ -385,7 +371,6 @@ namespace System
         }
 
         // Determines whether a character is a letter or a digit.
-        [Pure]
         public static bool IsLetterOrDigit(char c)
         {
             if (IsLatin1(c))
@@ -404,7 +389,6 @@ namespace System
         {
             if (culture == null)
                 throw new ArgumentNullException(nameof(culture));
-            Contract.EndContractBlock();
             return culture.TextInfo.ToUpper(c);
         }
 
@@ -417,14 +401,14 @@ namespace System
         //
         public static char ToUpper(char c)
         {
-            return ToUpper(c, CultureInfo.CurrentCulture);
+            return CultureInfo.CurrentCulture.TextInfo.ToUpper(c);
         }
 
 
         // Converts a character to upper-case for invariant culture.
         public static char ToUpperInvariant(char c)
         {
-            return ToUpper(c, CultureInfo.InvariantCulture);
+            return CultureInfo.InvariantCulture.TextInfo.ToUpper(c);
         }
 
 
@@ -437,7 +421,6 @@ namespace System
         {
             if (culture == null)
                 throw new ArgumentNullException(nameof(culture));
-            Contract.EndContractBlock();
             return culture.TextInfo.ToLower(c);
         }
 
@@ -449,21 +432,20 @@ namespace System
         // Converts a character to lower-case for the default culture.
         public static char ToLower(char c)
         {
-            return ToLower(c, CultureInfo.CurrentCulture);
+            return CultureInfo.CurrentCulture.TextInfo.ToLower(c);
         }
 
 
         // Converts a character to lower-case for invariant culture.
         public static char ToLowerInvariant(char c)
         {
-            return ToLower(c, CultureInfo.InvariantCulture);
+            return CultureInfo.InvariantCulture.TextInfo.ToLower(c);
         }
 
 
         //
         // IConvertible implementation
         //    
-        [Pure]
         public TypeCode GetTypeCode()
         {
             return TypeCode.Char;
@@ -561,7 +543,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -579,7 +560,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -596,7 +576,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -618,7 +597,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -635,7 +613,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -686,7 +663,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -715,7 +691,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -765,7 +740,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -774,13 +748,11 @@ namespace System
             return (CheckSeparator(CharUnicodeInfo.GetUnicodeCategory(s, index)));
         }
 
-        [Pure]
         public static bool IsSurrogate(char c)
         {
             return (c >= HIGH_SURROGATE_START && c <= LOW_SURROGATE_END);
         }
 
-        [Pure]
         public static bool IsSurrogate(String s, int index)
         {
             if (s == null)
@@ -791,7 +763,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             return (IsSurrogate(s[index]));
         }
 
@@ -829,7 +800,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -847,7 +817,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             char c = s[index];
             if (IsLatin1(c))
             {
@@ -869,7 +838,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
 
             if (IsLatin1(s[index]))
             {
@@ -885,7 +853,7 @@ namespace System
             {
                 return (GetLatin1UnicodeCategory(c));
             }
-            return CharUnicodeInfo.InternalGetUnicodeCategory(c);
+            return CharUnicodeInfo.GetUnicodeCategory((int)c);
         }
 
         public static UnicodeCategory GetUnicodeCategory(String s, int index)
@@ -896,7 +864,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             if (IsLatin1(s[index]))
             {
                 return (GetLatin1UnicodeCategory(s[index]));
@@ -917,7 +884,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             return CharUnicodeInfo.GetNumericValue(s, index);
         }
 
@@ -925,13 +891,11 @@ namespace System
         /*================================= IsHighSurrogate ============================
          ** Check if a char is a high surrogate.
          ==============================================================================*/
-        [Pure]
         public static bool IsHighSurrogate(char c)
         {
             return ((c >= CharUnicodeInfo.HIGH_SURROGATE_START) && (c <= CharUnicodeInfo.HIGH_SURROGATE_END));
         }
 
-        [Pure]
         public static bool IsHighSurrogate(String s, int index)
         {
             if (s == null)
@@ -942,20 +906,17 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             return (IsHighSurrogate(s[index]));
         }
 
         /*================================= IsLowSurrogate ============================
          ** Check if a char is a low surrogate.
          ==============================================================================*/
-        [Pure]
         public static bool IsLowSurrogate(char c)
         {
             return ((c >= CharUnicodeInfo.LOW_SURROGATE_START) && (c <= CharUnicodeInfo.LOW_SURROGATE_END));
         }
 
-        [Pure]
         public static bool IsLowSurrogate(String s, int index)
         {
             if (s == null)
@@ -966,14 +927,12 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             return (IsLowSurrogate(s[index]));
         }
 
         /*================================= IsSurrogatePair ============================
          ** Check if the string specified by the index starts with a surrogate pair.
          ==============================================================================*/
-        [Pure]
         public static bool IsSurrogatePair(String s, int index)
         {
             if (s == null)
@@ -984,7 +943,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            Contract.EndContractBlock();
             if (index + 1 < s.Length)
             {
                 return (IsSurrogatePair(s[index], s[index + 1]));
@@ -992,7 +950,6 @@ namespace System
             return (false);
         }
 
-        [Pure]
         public static bool IsSurrogatePair(char highSurrogate, char lowSurrogate)
         {
             return ((highSurrogate >= CharUnicodeInfo.HIGH_SURROGATE_START && highSurrogate <= CharUnicodeInfo.HIGH_SURROGATE_END) &&
@@ -1023,7 +980,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(utf32), SR.ArgumentOutOfRange_InvalidUTF32);
             }
-            Contract.EndContractBlock();
 
             if (utf32 < UNICODE_PLANE01_START)
             {
@@ -1058,7 +1014,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(lowSurrogate), SR.ArgumentOutOfRange_InvalidLowSurrogate);
             }
-            Contract.EndContractBlock();
             return (((highSurrogate - CharUnicodeInfo.HIGH_SURROGATE_START) * 0x400) + (lowSurrogate - CharUnicodeInfo.LOW_SURROGATE_START) + UNICODE_PLANE01_START);
         }
 
@@ -1081,7 +1036,6 @@ namespace System
             {
                 throw new ArgumentOutOfRangeException(nameof(index), SR.ArgumentOutOfRange_Index);
             }
-            Contract.EndContractBlock();
             // Check if the character at index is a high surrogate.
             int temp1 = (int)s[index] - CharUnicodeInfo.HIGH_SURROGATE_START;
             if (temp1 >= 0 && temp1 <= 0x7ff)

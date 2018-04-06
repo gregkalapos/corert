@@ -16,8 +16,10 @@ namespace Internal.TypeSystem
         ARM,
         ARMEL,
         ARM64,
+        Cpp64,
         X64,
         X86,
+        Wasm32,
     }
 
     /// <summary>
@@ -31,6 +33,7 @@ namespace Internal.TypeSystem
         OSX,
         FreeBSD,
         NetBSD,
+        WebAssembly,
     }
 
     public enum TargetAbi
@@ -88,10 +91,12 @@ namespace Internal.TypeSystem
                 {
                     case TargetArchitecture.ARM64:
                     case TargetArchitecture.X64:
+                    case TargetArchitecture.Cpp64:
                         return 8;
                     case TargetArchitecture.ARM:
                     case TargetArchitecture.ARMEL:
                     case TargetArchitecture.X86:
+                    case TargetArchitecture.Wasm32:
                         return 4;
                     default:
                         throw new NotSupportedException();
@@ -125,14 +130,33 @@ namespace Internal.TypeSystem
         }
 
         /// <summary>
-        /// Gets the minimum required method alignment.
+        /// Gets the minimum required alignment for methods whose address is visible
+        /// to managed code.
         /// </summary>
         public int MinimumFunctionAlignment
         {
             get
             {
                 // We use a minimum alignment of 4 irrespective of the platform.
+                // This is to prevent confusing the method address with a fat function pointer.
                 return 4;
+            }
+        }
+
+        public int MinimumCodeAlignment
+        {
+            get
+            {
+                switch (Architecture)
+                {
+                    case TargetArchitecture.ARM:
+                    case TargetArchitecture.ARMEL:
+                        return 2;
+                    case TargetArchitecture.ARM64:
+                        return 4;
+                    default:
+                        return 1;
+                }
             }
         }
 
@@ -210,8 +234,11 @@ namespace Internal.TypeSystem
                     else
                         return new LayoutInt(8);
                 case TargetArchitecture.X64:
+                case TargetArchitecture.ARM64:
+                case TargetArchitecture.Cpp64:
                     return new LayoutInt(8);
                 case TargetArchitecture.X86:
+                case TargetArchitecture.Wasm32:
                     return new LayoutInt(4);
                 default:
                     throw new NotSupportedException();

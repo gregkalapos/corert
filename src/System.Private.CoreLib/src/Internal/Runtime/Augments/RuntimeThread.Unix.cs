@@ -135,7 +135,7 @@ namespace Internal.Runtime.Augments
         }
 
         /// <summary>
-        /// This an entry point for managed threads created by applicatoin
+        /// This is an entry point for managed threads created by application
         /// </summary>
         [NativeCallable]
         private static IntPtr ThreadEntryPoint(IntPtr parameter)
@@ -158,6 +158,18 @@ namespace Internal.Runtime.Augments
         internal static void RestoreReentrantWaits()
         {
             throw new PlatformNotSupportedException();
+        }
+
+        private static int ComputeCurrentProcessorId()
+        {
+            int processorId = Interop.Sys.SchedGetCpu();
+
+            // sched_getcpu doesn't exist on all platforms. On those it doesn't exist on, the shim
+            // returns -1.  As a fallback in that case and to spread the threads across the buckets
+            // by default, we use the current managed thread ID as a proxy.
+            if (processorId < 0) processorId = Environment.CurrentManagedThreadId;
+
+            return processorId;
         }
     }
 }

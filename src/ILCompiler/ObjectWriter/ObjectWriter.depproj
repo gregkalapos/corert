@@ -1,0 +1,24 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), dir.props))\dir.props" />
+  <PropertyGroup>
+    <OutputPath>$(BaseOutputPath)$(OSPlatformConfig)/tools</OutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <NuGetTargetMoniker>.NETCoreApp,Version=v2.0</NuGetTargetMoniker>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <RuntimeIdentifiers>$(NuPkgRid)</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(NuPkgRid)'=='win-x64'">win7-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(NuPkgRid)'=='osx-x64'">osx.10.10-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(NuPkgRid)'=='linux-x64'">ubuntu.14.04-x64</RuntimeIdentifiers>
+    <RidSpecificAssets>true</RidSpecificAssets>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.DotNet.ObjectWriter">
+      <Version>$(ObjectWriterVersion)</Version>
+    </PackageReference>
+  </ItemGroup>
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), dir.targets))\dir.targets" />
+</Project>

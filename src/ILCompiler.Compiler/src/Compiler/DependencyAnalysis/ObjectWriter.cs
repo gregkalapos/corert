@@ -19,7 +19,7 @@ using ObjectData = ILCompiler.DependencyAnalysis.ObjectNode.ObjectData;
 namespace ILCompiler.DependencyAnalysis
 {
     /// <summary>
-    /// Object writer using https://github.com/dotnet/llilc
+    /// Object writer using src/Native/ObjWriter
     /// </summary>
     internal class ObjectWriter : IDisposable, ITypesDebugInfoWriter
     {
@@ -194,14 +194,16 @@ namespace ILCompiler.DependencyAnalysis
         private static extern int EmitSymbolRef(IntPtr objWriter, byte[] symbolName, RelocType relocType, int delta);
         public int EmitSymbolRef(Utf8StringBuilder symbolName, RelocType relocType, int delta = 0)
         {
-            // Workaround for ObjectWriter's lack of support for IMAGE_REL_BASED_RELPTR32
-            // https://github.com/dotnet/corert/issues/3278
-            if (relocType == RelocType.IMAGE_REL_BASED_RELPTR32)
+            if (_targetPlatform.Architecture != TargetArchitecture.ARMEL && _targetPlatform.Architecture != TargetArchitecture.ARM)
             {
-                relocType = RelocType.IMAGE_REL_BASED_REL32;
-                delta = checked(delta + sizeof(int));
+                // Workaround for ObjectWriter's lack of support for IMAGE_REL_BASED_RELPTR32
+                // https://github.com/dotnet/corert/issues/3278
+                if (relocType == RelocType.IMAGE_REL_BASED_RELPTR32)
+                {
+                    relocType = RelocType.IMAGE_REL_BASED_REL32;
+                    delta = checked(delta + sizeof(int));
+                }
             }
-
             return EmitSymbolRef(_nativeObjectWriter, symbolName.Append('\0').UnderlyingArray, relocType, delta);
         }
 
@@ -275,6 +277,43 @@ namespace ILCompiler.DependencyAnalysis
         [DllImport(NativeObjectWriterFileName)]
         private static extern uint GetCompleteClassTypeIndex(IntPtr objWriter, ClassTypeDescriptor classTypeDescriptor, ClassFieldsTypeDescriptor classFieldsTypeDescriptior, DataFieldDescriptor[] fields);
 
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern uint GetPrimitiveTypeIndex(IntPtr objWriter, int type);
+
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern void EmitARMFnStart(IntPtr objWriter);
+        public void EmitARMFnStart()
+        {
+            Debug.Assert(!_frameOpened);
+            EmitARMFnStart(_nativeObjectWriter);
+            _frameOpened = true;
+        }
+
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern void EmitARMFnEnd(IntPtr objWriter);
+        public void EmitARMFnEnd()
+        {
+            Debug.Assert(_frameOpened);
+            EmitARMFnEnd(_nativeObjectWriter);
+            _frameOpened = false;
+        }
+
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern void EmitARMExIdxCode(IntPtr objWriter, int nativeOffset, byte[] blob);
+        public void EmitARMExIdxCode(int nativeOffset, byte[] blob)
+        {
+            Debug.Assert(_frameOpened);
+            EmitARMExIdxCode(_nativeObjectWriter, nativeOffset, blob);
+        }
+
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern void EmitARMExIdxLsda(IntPtr objWriter, byte[] blob);
+        public void EmitARMExIdxLsda(byte[] blob)
+        {
+            Debug.Assert(_frameOpened);
+            EmitARMExIdxLsda(_nativeObjectWriter, blob);
+        }
+
         public uint GetClassTypeIndex(ClassTypeDescriptor classTypeDescriptor)
         {
             return GetClassTypeIndex(_nativeObjectWriter, classTypeDescriptor);
@@ -283,6 +322,25 @@ namespace ILCompiler.DependencyAnalysis
         public uint GetCompleteClassTypeIndex(ClassTypeDescriptor classTypeDescriptor, ClassFieldsTypeDescriptor classFieldsTypeDescriptior, DataFieldDescriptor[] fields)
         {
             return GetCompleteClassTypeIndex(_nativeObjectWriter, classTypeDescriptor, classFieldsTypeDescriptior, fields);
+        }
+
+        public uint GetPrimitiveTypeIndex(TypeDesc type)
+        {
+            Debug.Assert(type.IsPrimitive, "it is not a primitive type");
+            // OBJWRITER-TODO: Remove this workaround when objwriter will be updated (see https://github.com/dotnet/corert/issues/5177)
+            try
+            {
+                return GetPrimitiveTypeIndex(_nativeObjectWriter, (int)type.Category);
+            }
+            catch
+            {
+                if (_nodeFactory.Target.OperatingSystem == TargetOS.Windows)
+                {
+                    return PrimitiveTypeDescriptor.GetPrimitiveTypeIndex(type);
+                }
+
+                return 0;
+            }
         }
 
         [DllImport(NativeObjectWriterFileName)]
@@ -304,7 +362,17 @@ namespace ILCompiler.DependencyAnalysis
         public void EmitDebugVar(DebugVarInfo debugVar)
         {
             int rangeCount = debugVar.Ranges.Count;
-            uint typeIndex = _userDefinedTypeDescriptor.GetVariableTypeIndex(debugVar.Type, true);
+            uint typeIndex;
+
+            try
+            {
+                typeIndex = _userDefinedTypeDescriptor.GetVariableTypeIndex(debugVar.Type);
+            }
+            catch (TypeSystemException)
+            {
+                typeIndex = 0; // T_NOTYPE
+            }
+
             EmitDebugVar(_nativeObjectWriter, debugVar.Name, typeIndex, debugVar.IsParam, rangeCount, debugVar.Ranges.ToArray());
         }
 
@@ -326,10 +394,56 @@ namespace ILCompiler.DependencyAnalysis
         }
 
         [DllImport(NativeObjectWriterFileName)]
-        private static extern void EmitDebugFunctionInfo(IntPtr objWriter, byte[] methodName, int methodSize);
-        public void EmitDebugFunctionInfo(int methodSize)
+        private static extern void EmitDebugEHClause(IntPtr objWriter, UInt32 TryOffset, UInt32 TryLength, UInt32 HandlerOffset, UInt32 HandlerLength);
+
+        public void EmitDebugEHClause(DebugEHClauseInfo ehClause)
         {
-            EmitDebugFunctionInfo(_nativeObjectWriter, _currentNodeZeroTerminatedName.UnderlyingArray, methodSize);
+            // OBJWRITER-TODO: Remove this workaround when objwriter will be updated (see https://github.com/dotnet/corert/issues/5177)
+            try
+            {
+                EmitDebugEHClause(_nativeObjectWriter, ehClause.TryOffset, ehClause.TryLength, ehClause.HandlerOffset, ehClause.HandlerLength);
+            }
+            catch
+            {
+            }
+        }
+
+        public void EmitDebugEHClauseInfo(ObjectNode node)
+        {
+            var nodeWithCodeInfo = node as INodeWithCodeInfo;
+            if (nodeWithCodeInfo != null)
+            {
+                DebugEHClauseInfo[] clauses = nodeWithCodeInfo.DebugEHClauseInfos;
+                if (clauses != null)
+                {
+                    foreach (var clause in clauses)
+                    {
+                        EmitDebugEHClause(clause);
+                    }
+                }
+            }
+        }
+
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern void EmitDebugFunctionInfo(IntPtr objWriter, byte[] methodName, int methodSize, UInt32 methodTypeIndex);
+        public void EmitDebugFunctionInfo(ObjectNode node, int methodSize)
+        {
+            uint methodTypeIndex = 0;
+
+            var methodNode = node as IMethodNode;
+            if (methodNode != null)
+            {
+                try
+                {
+                    // OBJWRITER-TODO: Remove this workaround when objwriter will be updated (see https://github.com/dotnet/corert/issues/5177)
+                    methodTypeIndex = 0; // _userDefinedTypeDescriptor.GetMethodFunctionIdTypeIndex(methodNode.Method);
+                }
+                catch (TypeSystemException)
+                {
+                }
+            }
+
+            EmitDebugFunctionInfo(_nativeObjectWriter, _currentNodeZeroTerminatedName.UnderlyingArray, methodSize, methodTypeIndex);
         }
 
         [DllImport(NativeObjectWriterFileName)]
@@ -422,11 +536,15 @@ namespace ILCompiler.DependencyAnalysis
             FrameInfo[] frameInfos = nodeWithCodeInfo.FrameInfos;
             if (frameInfos == null)
             {
+                // Data should only be present if the method has unwind info
+                Debug.Assert(nodeWithCodeInfo.GetAssociatedDataNode(_nodeFactory) == null);
+
                 return;
             }
 
             byte[] gcInfo = nodeWithCodeInfo.GCInfo;
             ObjectData ehInfo = nodeWithCodeInfo.EHInfo;
+            ISymbolNode associatedDataNode = nodeWithCodeInfo.GetAssociatedDataNode(_nodeFactory);
 
             for (int i = 0; i < frameInfos.Length; i++)
             {
@@ -448,14 +566,18 @@ namespace ILCompiler.DependencyAnalysis
                 EmitSymbolDef(blobSymbolName);
 
                 FrameInfoFlags flags = frameInfo.Flags;
-                if (ehInfo != null)
-                {
-                    flags |= FrameInfoFlags.HasEHInfo;
-                }
+                flags |= ehInfo != null ? FrameInfoFlags.HasEHInfo : 0;
+                flags |= associatedDataNode != null ? FrameInfoFlags.HasAssociatedData : 0;
 
                 EmitBlob(blob);
 
                 EmitIntValue((byte)flags, 1);
+
+                if (associatedDataNode != null)
+                {
+                    EmitSymbolRef(_sb.Clear().Append(associatedDataNode.GetMangledName(_nodeFactory.NameMangler)), RelocType.IMAGE_REL_BASED_ABSOLUTE);
+                    associatedDataNode = null;
+                }
 
                 if (ehInfo != null)
                 {
@@ -502,11 +624,15 @@ namespace ILCompiler.DependencyAnalysis
             FrameInfo[] frameInfos = nodeWithCodeInfo.FrameInfos;
             if (frameInfos == null)
             {
+                // Data should only be present if the method has unwind info
+                Debug.Assert(nodeWithCodeInfo.GetAssociatedDataNode(_nodeFactory) == null);
+
                 return;
             }
 
             byte[] gcInfo = nodeWithCodeInfo.GCInfo;
             ObjectData ehInfo = nodeWithCodeInfo.EHInfo;
+            ISymbolNode associatedDataNode = nodeWithCodeInfo.GetAssociatedDataNode(_nodeFactory);
 
             for (int i = 0; i < frameInfos.Length; i++)
             {
@@ -529,10 +655,9 @@ namespace ILCompiler.DependencyAnalysis
                 EmitSymbolDef(blobSymbolName);
 
                 FrameInfoFlags flags = frameInfo.Flags;
-                if (ehInfo != null)
-                {
-                    flags |= FrameInfoFlags.HasEHInfo;
-                }
+                flags |= ehInfo != null ? FrameInfoFlags.HasEHInfo : 0;
+                flags |= associatedDataNode != null ? FrameInfoFlags.HasAssociatedData : 0;
+
                 EmitIntValue((byte)flags, 1);
 
                 if (i != 0)
@@ -541,6 +666,14 @@ namespace ILCompiler.DependencyAnalysis
 
                     // emit relative offset from the main function
                     EmitIntValue((ulong)(start - frameInfos[0].StartOffset), 4);
+                }
+
+                if (associatedDataNode != null)
+                {
+                    _sb.Clear();
+                    AppendExternCPrefix(_sb);
+                    EmitSymbolRef(_sb.Append(associatedDataNode.GetMangledName(_nodeFactory.NameMangler)), RelocType.IMAGE_REL_BASED_RELPTR32);
+                    associatedDataNode = null;
                 }
 
                 if (ehInfo != null)
@@ -596,20 +729,32 @@ namespace ILCompiler.DependencyAnalysis
 
         public void EmitCFICodes(int offset)
         {
+            bool forArm = (_targetPlatform.Architecture == TargetArchitecture.ARMEL || _targetPlatform.Architecture == TargetArchitecture.ARM);
+
             // Emit end the old frame before start a frame.
             if (_offsetToCfiEnd.Contains(offset))
             {
-                EmitCFIEnd(offset);
+                if (forArm)
+                    EmitARMFnEnd();
+                else
+                    EmitCFIEnd(offset);
             }
 
             if (_offsetToCfiStart.Contains(offset))
             {
-                EmitCFIStart(offset);
+                if (forArm)
+                    EmitARMFnStart();
+                else
+                    EmitCFIStart(offset);
 
                 byte[] blobSymbolName;
                 if (_offsetToCfiLsdaBlobName.TryGetValue(offset, out blobSymbolName))
                 {
-                    EmitCFILsda(blobSymbolName);
+                    if (forArm)
+                        EmitARMExIdxLsda(blobSymbolName);
+                    else
+                        EmitCFILsda(blobSymbolName);
+
                 }
                 else
                 {
@@ -624,7 +769,10 @@ namespace ILCompiler.DependencyAnalysis
             {
                 foreach (byte[] cfi in cfis)
                 {
-                    EmitCFICode(offset, cfi);
+                    if (forArm)
+                        EmitARMExIdxCode(offset, cfi);
+                    else
+                        EmitCFICode(offset, cfi);
                 }
             }
         }
@@ -769,7 +917,7 @@ namespace ILCompiler.DependencyAnalysis
             }
             _nodeFactory = factory;
             _targetPlatform = _nodeFactory.Target;
-            _userDefinedTypeDescriptor = new UserDefinedTypeDescriptor(this);
+            _userDefinedTypeDescriptor = new UserDefinedTypeDescriptor(this, factory);
         }
 
         public void Dispose()
@@ -899,7 +1047,7 @@ namespace ILCompiler.DependencyAnalysis
                         catch (ArgumentException)
                         {
                             ISymbolNode alreadyWrittenSymbol = _previouslyWrittenNodeNames[definedSymbol.GetMangledName(factory.NameMangler)];
-                            Debug.Assert(false, "Duplicate node name emitted to file",
+                            Debug.Fail("Duplicate node name emitted to file",
                             $"Symbol {definedSymbol.GetMangledName(factory.NameMangler)} has already been written to the output object file {objectFilePath} with symbol {alreadyWrittenSymbol}");
                         }
                     }
@@ -921,7 +1069,10 @@ namespace ILCompiler.DependencyAnalysis
                     // Build symbol definition map.
                     objectWriter.BuildSymbolDefinitionMap(node, nodeContents.DefinedSymbols);
 
-                    if (!factory.Target.IsWindows)
+                    // The DWARF CFI unwind is implemented for AMD64 & ARM32 only.
+                    TargetArchitecture tarch = factory.Target.Architecture;
+                    if (!factory.Target.IsWindows &&
+                        (tarch == TargetArchitecture.X64 || tarch == TargetArchitecture.ARMEL || tarch == TargetArchitecture.ARM))
                         objectWriter.BuildCFIMap(factory, node);
 
                     // Build debug location map
@@ -966,6 +1117,19 @@ namespace ILCompiler.DependencyAnalysis
                                 }
                             }
                             int size = objectWriter.EmitSymbolReference(reloc.Target, (int)delta, reloc.RelocType);
+
+                            // Emit a copy of original Thumb2 instruction that came from RyuJIT
+                            if (reloc.RelocType == RelocType.IMAGE_REL_BASED_THUMB_MOV32 ||
+                                reloc.RelocType == RelocType.IMAGE_REL_BASED_THUMB_BRANCH24)
+                            {
+                                unsafe
+                                {
+                                    fixed (void* location = &nodeContents.Data[i])
+                                    {
+                                        objectWriter.EmitBytes((IntPtr)location, size);
+                                    }
+                                }
+                            }
 
                             // Update nextRelocIndex/Offset
                             if (++nextRelocIndex < relocs.Length)
@@ -1017,13 +1181,13 @@ namespace ILCompiler.DependencyAnalysis
 
                     if (objectWriter.HasFunctionDebugInfo())
                     {
+                        // OBJWRITER-TODO: Remove this workaround when objwriter will be updated (see https://github.com/dotnet/corert/issues/5177)
                         if (factory.Target.OperatingSystem == TargetOS.Windows)
                         {
-                            // Build debug local var info.
-                            // It currently supports only Windows CodeView format.
                             objectWriter.EmitDebugVarInfo(node);
                         }
-                        objectWriter.EmitDebugFunctionInfo(nodeContents.Data.Length);
+                        objectWriter.EmitDebugEHClauseInfo(node);
+                        objectWriter.EmitDebugFunctionInfo(node, nodeContents.Data.Length);
                     }
                 }
 
@@ -1048,6 +1212,30 @@ namespace ILCompiler.DependencyAnalysis
                     }
                 }
             }
+        }
+
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern uint GetPointerTypeIndex(IntPtr objWriter, PointerTypeDescriptor pointerDescriptor);
+
+        uint ITypesDebugInfoWriter.GetPointerTypeIndex(PointerTypeDescriptor pointerDescriptor)
+        {
+            return GetPointerTypeIndex(_nativeObjectWriter, pointerDescriptor);
+        }
+
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern uint GetMemberFunctionTypeIndex(IntPtr objWriter, MemberFunctionTypeDescriptor memberDescriptor, uint[] argumentTypes);
+
+        uint ITypesDebugInfoWriter.GetMemberFunctionTypeIndex(MemberFunctionTypeDescriptor memberDescriptor, uint[] argumentTypes)
+        {
+            return GetMemberFunctionTypeIndex(_nativeObjectWriter, memberDescriptor, argumentTypes);
+        }
+
+        [DllImport(NativeObjectWriterFileName)]
+        private static extern uint GetMemberFunctionIdTypeIndex(IntPtr objWriter, MemberFunctionIdTypeDescriptor memberIdDescriptor);
+
+        uint ITypesDebugInfoWriter.GetMemberFunctionId(MemberFunctionIdTypeDescriptor memberIdDescriptor)
+        {
+            return GetMemberFunctionIdTypeIndex(_nativeObjectWriter, memberIdDescriptor);
         }
     }
 }

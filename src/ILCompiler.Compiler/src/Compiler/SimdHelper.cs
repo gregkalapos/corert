@@ -13,23 +13,31 @@ namespace ILCompiler
     /// <summary>
     /// Helper type that deals with System.Numerics.Vectors intrinsics.
     /// </summary>
-    internal struct SimdHelper
+    public struct SimdHelper
     {
         private ModuleDesc[] _simdModulesCached;
 
-        public bool IsInSimdModule(TypeDesc type)
+        public bool IsSimdType(TypeDesc type)
         {
-            if (type is MetadataType)
+            if (type is MetadataType metadataType)
             {
                 if (_simdModulesCached == null)
                 {
                     InitializeSimdModules(type);
                 }
 
-                ModuleDesc typeModule = ((MetadataType)type).Module;
+                ModuleDesc typeModule = metadataType.Module;
                 foreach (ModuleDesc simdModule in _simdModulesCached)
                     if (typeModule == simdModule)
                         return true;
+
+                if (metadataType.IsIntrinsic)
+                {
+                    string name = metadataType.Name;
+                    if ((name == "Vector`1" || name == "Vector") &&
+                        metadataType.Namespace == "System.Numerics")
+                        return true;
+                }
             }
 
             return false;
@@ -54,7 +62,7 @@ namespace ILCompiler
 
         public bool IsVectorOfT(TypeDesc type)
         {
-            return IsInSimdModule(type)
+            return IsSimdType(type)
                 && ((MetadataType)type).Name == "Vector`1"
                 && ((MetadataType)type).Namespace == "System.Numerics";
         }

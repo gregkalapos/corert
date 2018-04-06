@@ -37,12 +37,9 @@ namespace Internal.TypeSystem
 
             flags |= TypeFlags.HasFinalizerComputed;
 
-            return flags;
-        }
+            flags |= TypeFlags.AttributeCacheComputed;
 
-        public override string ToString()
-        {
-            return this.ParameterType.ToString() + "&";
+            return flags;
         }
     }
 }
